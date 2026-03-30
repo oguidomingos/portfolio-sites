@@ -1,199 +1,208 @@
-import { useState, useMemo } from 'react'
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react'
 import { sites, categories, type Site } from './data'
 import './index.css'
 
-function SiteCard({ site, onClick }: { site: Site; onClick: () => void }) {
+/* ── Netflix-style horizontal carousel row ── */
+function CarouselRow({ title, icon, items, onSelect }: {
+  title: string; icon: string; items: Site[]; onSelect: (s: Site) => void
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(true)
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 10)
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10)
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    checkScroll()
+    el.addEventListener('scroll', checkScroll, { passive: true })
+    return () => el.removeEventListener('scroll', checkScroll)
+  }, [checkScroll])
+
+  const scroll = (dir: 'left' | 'right') => {
+    const el = scrollRef.current
+    if (!el) return
+    const amount = el.clientWidth * 0.8
+    el.scrollBy({ left: dir === 'left' ? -amount : amount, behavior: 'smooth' })
+  }
+
   return (
-    <div
-      onClick={onClick}
-      className="group cursor-pointer bg-[#1e293b] rounded-xl overflow-hidden border border-[#334155] hover:border-[#3b82f6] transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/10"
-    >
-      <div className="relative w-full aspect-[16/10] bg-[#0f172a] overflow-hidden">
+    <div className="carousel-row">
+      <div className="row-header">
+        <span className="row-icon">{icon}</span>
+        <h2 className="row-title">{title}</h2>
+        <span className="row-count">{items.length}</span>
+      </div>
+      <div className="row-container">
+        {canScrollLeft && (
+          <button className="scroll-btn scroll-btn-left" onClick={() => scroll('left')} aria-label="Scroll left">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 6l-6 6 6 6"/></svg>
+          </button>
+        )}
+        <div className="row-scroll" ref={scrollRef}>
+          {items.map(site => (
+            <div key={site.name} className="card" onClick={() => onSelect(site)}>
+              <div className="card-preview">
+                <iframe
+                  src={site.url}
+                  title={site.displayName}
+                  loading="lazy"
+                  sandbox="allow-scripts allow-same-origin"
+                  className="card-iframe"
+                />
+                <div className="card-overlay">
+                  <div className="card-play">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>
+                  </div>
+                </div>
+              </div>
+              <div className="card-info">
+                <h3 className="card-name">{site.displayName}</h3>
+                <span className="card-location">{site.location}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {canScrollRight && (
+          <button className="scroll-btn scroll-btn-right" onClick={() => scroll('right')} aria-label="Scroll right">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 6l6 6-6 6"/></svg>
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ── Featured hero billboard (random top pick) ── */
+function HeroBillboard({ site, onOpen }: { site: Site; onOpen: (s: Site) => void }) {
+  return (
+    <div className="hero-billboard">
+      <div className="hero-iframe-wrap">
         <iframe
           src={site.url}
           title={site.displayName}
-          className="w-[1280px] h-[800px] origin-top-left border-0 pointer-events-none"
-          style={{ transform: 'scale(0.25)', transformOrigin: 'top left' }}
-          loading="lazy"
+          className="hero-iframe"
           sandbox="allow-scripts allow-same-origin"
         />
-        <div className="absolute inset-0 bg-transparent group-hover:bg-blue-500/5 transition-colors" />
+        <div className="hero-gradient" />
       </div>
-      <div className="p-4">
-        <h3 className="text-[#f1f5f9] font-semibold text-sm truncate">{site.displayName}</h3>
-        <p className="text-[#64748b] text-xs mt-1">{site.location}</p>
+      <div className="hero-content">
+        <span className="hero-badge">Featured</span>
+        <h1 className="hero-title">{site.displayName}</h1>
+        <p className="hero-location">{site.location}</p>
+        <div className="hero-actions">
+          <button className="btn-primary" onClick={() => onOpen(site)}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            View Site
+          </button>
+          <a href={site.url} target="_blank" rel="noopener noreferrer" className="btn-secondary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"/></svg>
+            Open in New Tab
+          </a>
+        </div>
       </div>
     </div>
   )
 }
 
+/* ── Fullscreen modal ── */
 function SiteModal({ site, onClose }: { site: Site; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    document.body.style.overflow = 'hidden'
+    return () => { window.removeEventListener('keydown', handler); document.body.style.overflow = '' }
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-[95vw] h-[90vh] bg-[#1e293b] rounded-2xl overflow-hidden border border-[#334155] shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-3 border-b border-[#334155] shrink-0">
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-container" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
           <div>
-            <h2 className="text-[#f1f5f9] font-semibold text-lg">{site.displayName}</h2>
-            <p className="text-[#64748b] text-sm">{site.location}</p>
+            <h2 className="modal-title">{site.displayName}</h2>
+            <span className="modal-location">{site.location}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <a
-              href={site.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-4 py-2 bg-[#3b82f6] hover:bg-[#2563eb] text-white text-sm font-medium rounded-lg transition-colors"
-            >
+          <div className="modal-actions">
+            <a href={site.url} target="_blank" rel="noopener noreferrer" className="btn-primary btn-sm">
               Open Full Site
             </a>
-            <button onClick={onClose} className="p-2 text-[#94a3b8] hover:text-white transition-colors">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
+            <button onClick={onClose} className="modal-close" aria-label="Close">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-hidden">
-          <iframe
-            src={site.url}
-            title={site.displayName}
-            className="w-full h-full border-0"
-          />
+        <div className="modal-body">
+          <iframe src={site.url} title={site.displayName} className="modal-iframe" />
         </div>
       </div>
     </div>
   )
 }
 
+/* ── Main App ── */
 function App() {
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const [search, setSearch] = useState('')
   const [selectedSite, setSelectedSite] = useState<Site | null>(null)
 
-  const filteredSites = useMemo(() => {
-    return sites.filter(site => {
-      const matchCategory = selectedCategory === 'all' || site.category === selectedCategory
-      const matchSearch = search === '' ||
-        site.displayName.toLowerCase().includes(search.toLowerCase()) ||
-        site.location.toLowerCase().includes(search.toLowerCase())
-      return matchCategory && matchSearch
-    })
-  }, [selectedCategory, search])
-
-  const activeCategories = useMemo(() => {
-    return categories.filter(cat => sites.some(s => s.category === cat.id))
+  const featured = useMemo(() => {
+    const good = sites.filter(s => ['site-paulista', 'site-finishing-touches', 'site-fogo-galpao', 'site-ipest-solutions', 'site-dallas-maids', 'site-custom-painting-sd'].includes(s.name))
+    return good[Math.floor(Math.random() * good.length)] || sites[0]
   }, [])
 
-  const stats = useMemo(() => {
-    const us = sites.filter(s => s.category !== 'restaurants-br').length
-    const br = sites.filter(s => s.category === 'restaurants-br').length
-    const cats = new Set(sites.map(s => s.category)).size
-    return { total: sites.length, us, br, cats }
+  const rows = useMemo(() => {
+    return categories
+      .map(cat => ({
+        ...cat,
+        items: sites.filter(s => s.category === cat.id)
+      }))
+      .filter(r => r.items.length > 0)
   }, [])
+
+  const stats = { total: sites.length, industries: rows.length }
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <header className="border-b border-[#1e293b] sticky top-0 z-40 bg-[#0f172a]/95 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-[#3b82f6] to-[#8b5cf6] rounded-xl flex items-center justify-center text-white font-bold text-lg">T</div>
-            <div>
-              <h1 className="text-[#f1f5f9] font-bold text-xl leading-tight">Trik Digital</h1>
-              <p className="text-[#64748b] text-xs">Website Portfolio</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 text-sm text-[#94a3b8]">
-            <span className="hidden sm:inline"><strong className="text-[#f1f5f9]">{stats.total}</strong> sites</span>
-            <span className="hidden md:inline"><strong className="text-[#f1f5f9]">{stats.cats}</strong> industries</span>
+    <div className="app">
+      {/* Navbar */}
+      <nav className="navbar">
+        <div className="nav-left">
+          <div className="nav-logo">
+            <div className="logo-mark">T</div>
+            <span className="logo-text">TRIK</span>
           </div>
         </div>
-      </header>
-
-      {/* Hero */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pt-12 pb-8">
-        <h2 className="text-3xl sm:text-4xl font-bold text-[#f1f5f9] mb-3">
-          {stats.total} Professional Websites
-        </h2>
-        <p className="text-[#94a3b8] text-lg max-w-2xl">
-          Custom-built sites for small businesses across {stats.cats} industries. Each site is mobile-responsive, fast-loading, and optimized for conversions.
-        </p>
-        <div className="flex gap-6 mt-6 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#3b82f6]"></span>
-            <span className="text-[#94a3b8]"><strong className="text-[#f1f5f9]">{stats.us}</strong> US businesses</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-[#22c55e]"></span>
-            <span className="text-[#94a3b8]"><strong className="text-[#f1f5f9]">{stats.br}</strong> BR businesses</span>
-          </div>
+        <div className="nav-center">
+          <span className="nav-stat">{stats.total} Premium Sites</span>
+          <span className="nav-divider" />
+          <span className="nav-stat">{stats.industries} Industries</span>
         </div>
-      </section>
+        <div className="nav-right" />
+      </nav>
 
-      {/* Filters */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-6 flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1 max-w-md">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search by name or location..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-[#1e293b] border border-[#334155] rounded-xl text-[#f1f5f9] text-sm placeholder-[#64748b] focus:outline-none focus:border-[#3b82f6] transition-colors"
+      {/* Hero Billboard */}
+      <HeroBillboard site={featured} onOpen={setSelectedSite} />
+
+      {/* Category Rows */}
+      <div className="rows-section">
+        {rows.map(row => (
+          <CarouselRow
+            key={row.id}
+            title={row.label}
+            icon={row.icon}
+            items={row.items}
+            onSelect={setSelectedSite}
           />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setSelectedCategory('all')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              selectedCategory === 'all'
-                ? 'bg-[#3b82f6] text-white'
-                : 'bg-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] border border-[#334155]'
-            }`}
-          >
-            All ({sites.length})
-          </button>
-          {activeCategories.map(cat => {
-            const count = sites.filter(s => s.category === cat.id).length
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                  selectedCategory === cat.id
-                    ? 'bg-[#3b82f6] text-white'
-                    : 'bg-[#1e293b] text-[#94a3b8] hover:text-[#f1f5f9] border border-[#334155]'
-                }`}
-              >
-                {cat.icon} {cat.label} ({count})
-              </button>
-            )
-          })}
-        </div>
-      </section>
-
-      {/* Grid */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-16">
-        {filteredSites.length === 0 ? (
-          <div className="text-center py-20 text-[#64748b]">
-            <p className="text-lg">No sites found matching your search.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredSites.map(site => (
-              <SiteCard key={site.name} site={site} onClick={() => setSelectedSite(site)} />
-            ))}
-          </div>
-        )}
-      </section>
+        ))}
+      </div>
 
       {/* Footer */}
-      <footer className="border-t border-[#1e293b] py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 text-center text-[#64748b] text-sm">
-          <p>Built by <strong className="text-[#f1f5f9]">Trik Digital</strong> — AI-powered web solutions</p>
-          <p className="mt-1">Each site custom-built with React, Tailwind CSS, and deployed on fast global CDN</p>
-        </div>
+      <footer className="site-footer">
+        <p>Built by <strong>Trik Digital</strong> &mdash; AI-powered premium web solutions</p>
+        <p className="footer-sub">React &middot; Tailwind CSS &middot; Global CDN</p>
       </footer>
 
       {/* Modal */}
