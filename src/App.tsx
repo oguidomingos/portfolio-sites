@@ -172,7 +172,7 @@ function App() {
         <div className="nav-left">
           <div className="nav-logo">
             <div className="logo-mark">T</div>
-            <span className="logo-text">TRIK</span>
+            <span className="logo-text">TRION</span>
           </div>
         </div>
         <div className="nav-center">
@@ -201,7 +201,7 @@ function App() {
 
       {/* Footer */}
       <footer className="site-footer">
-        <p>Built by <strong>Trik Digital</strong> &mdash; AI-powered premium web solutions</p>
+        <p>Built by <strong>Trion Marketing</strong> &mdash; AI-powered premium web solutions</p>
         <p className="footer-sub">React &middot; Tailwind CSS &middot; Global CDN</p>
       </footer>
 
